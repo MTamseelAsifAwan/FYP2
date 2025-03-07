@@ -2,3 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.chart-container {
+  position: relative;
+}
+
+.chart-container .recharts-wrapper {
+  overflow: visible;
+}
+
+.chart-container .recharts-cartesian-axis {
+  position: sticky;
+  background: inherit;
+  z-index: 1;
+}
+

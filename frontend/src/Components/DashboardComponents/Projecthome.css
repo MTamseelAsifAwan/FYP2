@@ -1,0 +1,13 @@
+.btn-report {
+  margin: 5px;
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.btn-report:hover {
+  background-color: #45a049;
+}
