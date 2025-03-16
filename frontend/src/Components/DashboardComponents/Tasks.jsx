@@ -5,6 +5,7 @@ import axios from 'axios';
 import moment from 'moment';
 import React, { PureComponent } from 'react';
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer } from 'recharts';
+import jsPDF from 'jspdf';
 
 const RADIAN = Math.PI / 180;
 
@@ -285,6 +286,29 @@ const Tasks = () => {
     );
   };
 
+  const downloadReport = async () => {
+    const projectId = localStorage.getItem('selectedProjectId');
+    try {
+      const response = await axios.get(`http://localhost:4000/api/projectProgressReport?projectId=${projectId}`);
+      const reportData = response.data;
+  
+      const doc = new jsPDF();
+      doc.text(`Project Name: ${reportData.projectName}`, 10, 10);
+      doc.text(`Methodology: ${reportData.methodology}`, 10, 20);
+      doc.text(`To Do: ${reportData.toDo}`, 10, 30);
+      doc.text(`In Progress: ${reportData.inProgress}`, 10, 40);
+      doc.text(`Done: ${reportData.done}`, 10, 50);
+      doc.text(`Total Assignees: ${reportData.assignees.length}`, 10, 60);
+      doc.text(`Assignees: ${reportData.assignees.join(', ')}`, 10, 70);
+  
+      doc.save('ProjectProgressReport.pdf');
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      alert('Failed to download report. Please try again.');
+    }
+  };
+  
+
   const progressData = getProgressData(selectedTask);
 
   const cx = 150;
@@ -311,6 +335,13 @@ const Tasks = () => {
 
   return (
     <div className="p-6">
+      {/* Add a button to download the report */}
+      <button
+        className="mb-4 px-4 py-2 text-white bg-purple-900 rounded-full hover:bg-purple-950 flex items-center"
+        onClick={downloadReport}
+      >
+        Download Report
+      </button>
       {viewDetails ? (
         loadingDetails ? (
           <div>

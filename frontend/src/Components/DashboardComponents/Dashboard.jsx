@@ -122,7 +122,9 @@ function Dashboard() {
   }, [activeSection, fetchProjects]);
 
   const handleSelectSection = (section) => {
-    setActiveSection(section);
+    if (section !== activeSection) {
+      setActiveSection(section);
+    }
   };
 
   const handleProjectSelect = useCallback((project) => {
