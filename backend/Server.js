@@ -27,14 +27,32 @@ const PORT = process.env.PORT || 4000;
 
 // Enable CORS for all requests
 app.use(cors());
+app.use(express.json()); // To parse JSON bodies
 
-app.get('/api/projects', async (req, res) => {
+// Middleware to verify Firebase ID token
+const verifyToken = async (req, res, next) => {
+  const idToken = req.headers.authorization?.split('Bearer ')[1];
+  if (!idToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Error verifying ID token:', error);
+    res.status(401).json({ error: 'Unauthorized' });
+  }
+};
+
+app.get('/api/projects', verifyToken, async (req, res) => {
   console.log('/api/projects API hit');
   try {
     console.log('PROJECT DATA FETCHING');
     
     // Reference to the Realtime Database node where Accesstokendata is stored
-    const ref = db.ref('users/Accesstokendata');
+    const ref = db.ref(`users/${req.user.uid}/Accesstokendata`);
 
     // Fetch the data from the Realtime Database
     ref.once('value', async (snapshot) => {
@@ -76,7 +94,7 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
-app.get('/api/tasks', async (req, res) => {
+app.get('/api/tasks', verifyToken, async (req, res) => {
   console.log('/api/tasks API hit');
   try {
     console.log('TASKS DATA FETCHING');
@@ -88,7 +106,7 @@ app.get('/api/tasks', async (req, res) => {
     }
 
     // Reference to the Realtime Database node where Accesstokendata is stored
-    const ref = db.ref('users/Accesstokendata');
+    const ref = db.ref(`users/${req.user.uid}/Accesstokendata`);
 
     // Fetch the data from the Realtime Database
     ref.once('value', async (snapshot) => {
@@ -134,7 +152,7 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-app.get('/api/tasksdetails', async (req, res) => {
+app.get('/api/tasksdetails', verifyToken, async (req, res) => {
   console.log('/api/tasksdetails API hit');
   try {
     console.log('TASKS DETAILS DATA FETCHING');
@@ -146,7 +164,7 @@ app.get('/api/tasksdetails', async (req, res) => {
     }
 
     // Reference to the Realtime Database node where Accesstokendata is stored
-    const ref = db.ref('users/Accesstokendata');
+    const ref = db.ref(`users/${req.user.uid}/Accesstokendata`);
 
     // Fetch the data from the Realtime Database
     ref.once('value', async (snapshot) => {
@@ -187,7 +205,7 @@ app.get('/api/tasksdetails', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.get('/api/taskscomments', async (req, res) => {
+app.get('/api/taskscomments', verifyToken, async (req, res) => {
   console.log('/api/taskscomments API hit');
   try {
     console.log('TASKS DETAILS DATA FETCHING');
@@ -199,7 +217,7 @@ app.get('/api/taskscomments', async (req, res) => {
     }
 
     // Reference to the Realtime Database node where Accesstokendata is stored
-    const ref = db.ref('users/Accesstokendata');
+    const ref = db.ref(`users/${req.user.uid}/Accesstokendata`);
 
     // Fetch the data from the Realtime Database
     ref.once('value', async (snapshot) => {
