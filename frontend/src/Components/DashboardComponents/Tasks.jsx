@@ -56,7 +56,7 @@ const getTasksFromDB = async (projectId) => {
 const Tasks = () => {
   const [storedProjectId, setStoredProjectId] = useState('');
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // This will now cover both auth and task loading
   const [selectedTask, setSelectedTask] = useState(null);
   const [taskDetails, setTaskDetails] = useState(null);
   const [viewDetails, setViewDetails] = useState(false);
@@ -67,11 +67,14 @@ const Tasks = () => {
   const [authToken, setAuthToken] = useState('');
   const [authLoading, setAuthLoading] = useState(true); // Add auth loading state
   const [authError, setAuthError] = useState(null); // Add auth error state
+  const [revealPrediction, setRevealPrediction] = useState(false);
 
   // Improved auth token handling
   useEffect(() => {
     const auth = getAuth();
     setAuthLoading(true);
+    // Keep loading true during authentication
+    setLoading(true);
     
     // Use Firebase's onAuthStateChanged for more reliable auth state tracking
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -85,14 +88,17 @@ const Tasks = () => {
         } catch (error) {
           console.error('Error getting auth token:', error);
           setAuthError(error.message);
+          setLoading(false); // Stop loading on auth error
         } finally {
           setAuthLoading(false);
+          // Note: We don't set loading to false here because we'll fetch tasks next
         }
       } else {
         console.log("No user is signed in");
         setAuthToken('');
         setAuthError('User not authenticated');
         setAuthLoading(false);
+        setLoading(false); // Stop loading on auth error
       }
     });
     
@@ -103,18 +109,20 @@ const Tasks = () => {
   const fetchTask = async () => {
     if (!authToken) {
       console.error("Cannot fetch tasks - no auth token available");
+      setLoading(false); // Ensure loading is set to false if we can't fetch
       return;
     }
     
     const projectId = localStorage.getItem('selectedProjectId');
     if (!projectId) {
       console.error("No project ID found in localStorage");
+      setLoading(false); // Ensure loading is set to false if we can't fetch
       return;
     }
     
     console.log("Fetching tasks with auth token", authToken.substring(0, 10) + "...");
     setStoredProjectId(projectId);
-    setLoading(true);
+    setLoading(true); // Ensure loading is true when fetching tasks
     
     try {
       let allIssues = [];
@@ -263,6 +271,7 @@ const Tasks = () => {
     setSelectedTask(task);
     setLoadingDetails(true);
     setLoadingTaskId(task.id);
+    console.log(task.id)
     localStorage.setItem('selectedTask', JSON.stringify(task));
     
     try {
@@ -372,6 +381,10 @@ const Tasks = () => {
     );
   };
 
+  const togglePredictionReveal = () => {
+    setRevealPrediction(!revealPrediction);
+  };
+
   // Show authentication error if there is one
   if (authError && !authLoading) {
     return (
@@ -385,28 +398,7 @@ const Tasks = () => {
     );
   }
 
-  // Show authentication loading state
-  if (authLoading) {
-    return (
-      <div className="p-6 text-center">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="rounded-full bg-gray-400 h-12 w-12 mb-4"></div>
-          <div className="h-4 bg-gray-400 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-gray-400 rounded w-1/3"></div>
-          <p className="mt-4 text-gray-600">Authenticating...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const progressData = getProgressData(selectedTask);
-
-  const cx = 150;
-  const cy = 200;
-  const iR = 50;
-  const oR = 100;
-  const value = calculateProgress(tasks);
-
+  // Use the skeleton loader for both authentication and task loading
   if (loading) {
     return (
       <div className="grid grid-cols-3 gap-10 p-6 ">
@@ -422,6 +414,14 @@ const Tasks = () => {
       </div>
     );
   }
+
+  const progressData = getProgressData(selectedTask);
+
+  const cx = 150;
+  const cy = 200;
+  const iR = 50;
+  const oR = 100;
+  const value = calculateProgress(tasks);
 
   return (
     <div className="p-6">
@@ -470,14 +470,82 @@ const Tasks = () => {
                   <p><FaCalendarAlt className="inline text-blue-500 mr-2" /><strong>Created: </strong> {taskDetails?.fields?.created ? moment(taskDetails.fields.created).format('MMMM Do YYYY, h:mm:ss a') : 'Date is not selected'}</p>
                   <p><FaCalendarAlt className="inline text-red-500 mr-2" /><strong>Due Date: </strong> {taskDetails?.fields?.duedate ? moment(taskDetails.fields.duedate).format('MMMM Do YYYY, h:mm:ss a') : 'Date is not selected'}</p>
                   <p><FaFlag className="inline text-green-500 mr-2 " /><strong>Priority: </strong> {taskDetails?.fields?.priority?.name ? taskDetails?.fields?.priority?.name : "No Name"}</p>
+                  
+                  <div className="flex mt-4 space-x-4">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-white">Transition History</h3>
+                      <div className="rounded-lg text-black w-full h-40 p-2 overflow-y-scroll bg-white">
+                        {taskDetails?.transitionHistory?.transitions?.length > 0 ? (
+                          taskDetails.transitionHistory.transitions.map((transition, index) => (
+                            <div key={index} className="mb-2 border-b pb-1 border-gray-200">
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-xs">
+                                  {transition.fromStatus} → {transition.toStatus}
+                                </span>
+                                <span className="text-xs text-gray-600">
+                                  {moment(transition.timestamp).format('MMM Do, h:mm a')}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Changed by: {transition.author}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-center text-gray-900">No history</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-white">Time in Status</h3>
+                      <div className="rounded-lg text-black w-full h-40 p-2 overflow-y-scroll bg-white">
+                        {taskDetails?.transitionHistory?.timeInStatus && 
+                        Object.keys(taskDetails.transitionHistory.timeInStatus).length > 0 ? (
+                          <div className="space-y-2">
+                            {Object.entries(taskDetails.transitionHistory.timeInStatus).map(([status, data], index) => (
+                              <div key={index} className="flex justify-between items-center">
+                                <span className="font-medium text-xs">{status}:</span>
+                                <span className={`px-2 py-1 rounded-full text-white text-xs ${
+                                  status.toLowerCase().includes('done') ? 'bg-green-600' : 
+                                  status.toLowerCase().includes('progress') ? 'bg-blue-600' : 
+                                  'bg-gray-600'
+                                }`}>
+                                  {data.formattedDuration}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-center text-gray-900">No data</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <p><FaUser className="inline text-purple-500 mr-2" /><strong>Assignee: </strong> {taskDetails?.fields?.assignee?.displayName ? taskDetails?.fields?.assignee?.displayName : 'No Assignee'}</p>
                   <p><FaTag className="inline text-orange-500 mr-2" /><strong>Label: </strong> {taskDetails?.fields.labels ? taskDetails?.fields.labels : 'No labels'}</p>
                   <p><FaEye className="inline text-teal-500 mr-2" /><strong>Last viewed: </strong> {taskDetails?.fields?.lastViewed ? moment(taskDetails.fields.lastViewed).format('MMMM Do YYYY, h:mm:ss a') : 'Date is not selected'}</p>
-                  <div className="mt-1 h-52 ">
-                    <div className="rounded-sm text-black w-full p-2">
-                      <ResponsiveContainer width="100%" height={184}>
+                  
+                  <div 
+                    className="cursor-pointer" 
+                    onClick={togglePredictionReveal}
+                  >
+                    <p><FaCalendarAlt className="inline text-indigo-500 mr-2" /><strong>Predicted Completion: </strong> 
+                      <span className={`inline-block px-3 py-1 rounded bg-indigo-900 ${revealPrediction ? '' : 'blur-sm select-none'}`}>
+                        {moment().add(14, 'days').format('MMMM Do YYYY')}
+                      </span>
+                      <span className="ml-2 text-xs text-indigo-300">
+                        {revealPrediction ? '(Click)' : '(Click)'}
+                      </span>
+                    </p>
+                  </div>
+                
+                  <div className="mt-4">
+                    <h3 className="text-lg font-bold text-white">Progress</h3>
+                    <div className="h-40">
+                      <ResponsiveContainer width="100%" height={160}>
                         <PieChart>
                           <Pie
                             activeIndex={activeIndex}
@@ -501,7 +569,7 @@ const Tasks = () => {
                   </div>
                 </div>
               </div>
-              <div className="mt-0 border-t-2 border-t-slate-400 grid grid-cols-2 gap-4">
+              <div className="mt-4 border-t-2 border-t-slate-400 grid grid-cols-2 gap-4">
                 <div>
                   <h3 className="text-xl font-bold text-white ">Comments</h3>
                   <div className="rounded-lg text-black w-full h-20 p-2 overflow-y-scroll bg-white">
@@ -536,6 +604,7 @@ const Tasks = () => {
                     )}
                   </div>
                 </div>
+                
               </div>
             </div>
           </div>
