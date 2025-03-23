@@ -5,7 +5,7 @@ import axios from 'axios';
 import moment from 'moment';
 import React, { PureComponent } from 'react';
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer } from 'recharts';
-import jsPDF from 'jspdf';
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Import additional Firebase auth utilities
 
 const RADIAN = Math.PI / 180;
 
@@ -64,21 +64,79 @@ const Tasks = () => {
   const [loadingTaskId, setLoadingTaskId] = useState(null);
   const [selectedTaskcomments, setSelectedTaskComments] = useState(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [authToken, setAuthToken] = useState('');
+  const [authLoading, setAuthLoading] = useState(true); // Add auth loading state
+  const [authError, setAuthError] = useState(null); // Add auth error state
+
+  // Improved auth token handling
+  useEffect(() => {
+    const auth = getAuth();
+    setAuthLoading(true);
+    
+    // Use Firebase's onAuthStateChanged for more reliable auth state tracking
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          console.log("User authenticated, getting token...");
+          const token = await user.getIdToken(true); // Force token refresh
+          console.log("Token obtained successfully");
+          setAuthToken(token);
+          setAuthError(null);
+        } catch (error) {
+          console.error('Error getting auth token:', error);
+          setAuthError(error.message);
+        } finally {
+          setAuthLoading(false);
+        }
+      } else {
+        console.log("No user is signed in");
+        setAuthToken('');
+        setAuthError('User not authenticated');
+        setAuthLoading(false);
+      }
+    });
+    
+    // Cleanup subscription
+    return () => unsubscribe();
+  }, []);
 
   const fetchTask = async () => {
+    if (!authToken) {
+      console.error("Cannot fetch tasks - no auth token available");
+      return;
+    }
+    
     const projectId = localStorage.getItem('selectedProjectId');
+    if (!projectId) {
+      console.error("No project ID found in localStorage");
+      return;
+    }
+    
+    console.log("Fetching tasks with auth token", authToken.substring(0, 10) + "...");
     setStoredProjectId(projectId);
+    setLoading(true);
+    
     try {
       let allIssues = [];
-      const maxResults = 50; // Increase the batch size
-      const response = await axios.get(`http://localhost:4000/api/tasks?projectId=${projectId}&startAt=0&maxResults=1`);
+      const maxResults = 50;
+      
+      // Include the auth token in the request headers
+      const headers = {
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      console.log("Making initial API request to get task count");
+      const response = await axios.get(`http://localhost:4000/api/tasks?projectId=${projectId}&startAt=0&maxResults=1`, { headers });
+      
       const total = response.data.total;
+      console.log(`Found ${total} total tasks, fetching in batches`);
+      
       const batchCount = Math.ceil(total / maxResults);
 
       // Create an array of promises to fetch batches in parallel
       const fetchPromises = Array.from({ length: batchCount }, (_, index) => {
         const startAt = index * maxResults;
-        return axios.get(`http://localhost:4000/api/tasks?projectId=${projectId}&startAt=${startAt}&maxResults=${maxResults}`);
+        return axios.get(`http://localhost:4000/api/tasks?projectId=${projectId}&startAt=${startAt}&maxResults=${maxResults}`, { headers });
       });
 
       // Wait for all promises to resolve
@@ -86,26 +144,39 @@ const Tasks = () => {
       responses.forEach(response => {
         allIssues = [...allIssues, ...response.data.issues];
       });
-
+      
+      console.log(`Successfully fetched ${allIssues.length} tasks`);
       setTasks(allIssues);
       setLoading(false);
       saveTasksToDB(projectId, allIssues); // Save to IndexedDB
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching tasks:", error);
+      if (error.response) {
+        console.error("Response data:", error.response.data);
+        console.error("Response status:", error.response.status);
+      }
       setLoading(false);
       alert('Failed to fetch tasks. Please try again.');
 
-      const storedData = await getTasksFromDB(projectId); // Get from IndexedDB
-      if (storedData) {
-        setTasks(storedData);
-        setLoading(false);
+      // Try to load from IndexedDB as fallback
+      try {
+        const storedData = await getTasksFromDB(projectId);
+        if (storedData) {
+          console.log("Loading tasks from IndexedDB");
+          setTasks(storedData);
+        }
+      } catch (dbError) {
+        console.error("Error loading from IndexedDB:", dbError);
       }
     }
   };
 
+  // Only trigger fetchTask when authToken is available and not loading
   useEffect(() => {
-    fetchTask();
-  }, []);
+    if (authToken && !authLoading) {
+      fetchTask();
+    }
+  }, [authToken, authLoading]);
 
   useEffect(() => {
     const storedTask = localStorage.getItem('selectedTask');
@@ -182,26 +253,41 @@ const Tasks = () => {
   };
 
   const handleTaskClick = async (task) => {
+    if (!authToken) {
+      console.error("Cannot fetch task details - no auth token available");
+      alert('Authentication error. Please refresh the page and try again.');
+      return;
+    }
+    
     console.log('Fetching task details API hit');
     setSelectedTask(task);
     setLoadingDetails(true);
     setLoadingTaskId(task.id);
     localStorage.setItem('selectedTask', JSON.stringify(task));
+    
     try {
-      const response = await axios.get(`http://localhost:4000/api/tasksdetails?taskId=${task.id}`);
-      const responseofcomment = await axios.get(`http://localhost:4000/api/taskscomments?taskId=${task.id}`);
+      // Include auth token in the requests
+      const headers = {
+        'Authorization': `Bearer ${authToken}`
+      };
+      
+      const response = await axios.get(`http://localhost:4000/api/tasksdetails?taskId=${task.id}`, { headers });
+      const responseofcomment = await axios.get(`http://localhost:4000/api/taskscomments?taskId=${task.id}`, { headers });
+      
       console.log('Fetching task comments API hit');
       const taskDetails = response.data;
       const commentsdata = responseofcomment.data;
       setTaskDetails(taskDetails);
-      console.log(taskDetails)
       setSelectedTaskComments(commentsdata);
-      console.log("jj",commentsdata);
       setViewDetails(true);
       setLoadingDetails(false);
       setLoadingTaskId(null);
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching task details:", error);
+      if (error.response) {
+        console.error("Response data:", error.response.data);
+        console.error("Response status:", error.response.status);
+      }
       setLoadingDetails(false);
       setLoadingTaskId(null);
       alert('Failed to fetch task details. Please try again.');
@@ -286,28 +372,32 @@ const Tasks = () => {
     );
   };
 
-  const downloadReport = async () => {
-    const projectId = localStorage.getItem('selectedProjectId');
-    try {
-      const response = await axios.get(`http://localhost:4000/api/projectProgressReport?projectId=${projectId}`);
-      const reportData = response.data;
-  
-      const doc = new jsPDF();
-      doc.text(`Project Name: ${reportData.projectName}`, 10, 10);
-      doc.text(`Methodology: ${reportData.methodology}`, 10, 20);
-      doc.text(`To Do: ${reportData.toDo}`, 10, 30);
-      doc.text(`In Progress: ${reportData.inProgress}`, 10, 40);
-      doc.text(`Done: ${reportData.done}`, 10, 50);
-      doc.text(`Total Assignees: ${reportData.assignees.length}`, 10, 60);
-      doc.text(`Assignees: ${reportData.assignees.join(', ')}`, 10, 70);
-  
-      doc.save('ProjectProgressReport.pdf');
-    } catch (error) {
-      console.error('Error downloading report:', error);
-      alert('Failed to download report. Please try again.');
-    }
-  };
-  
+  // Show authentication error if there is one
+  if (authError && !authLoading) {
+    return (
+      <div className="p-6 text-center">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Authentication Error</strong>
+          <p className="block sm:inline">{authError}</p>
+          <p className="mt-2">Please refresh the page or try signing in again.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show authentication loading state
+  if (authLoading) {
+    return (
+      <div className="p-6 text-center">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="rounded-full bg-gray-400 h-12 w-12 mb-4"></div>
+          <div className="h-4 bg-gray-400 rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-gray-400 rounded w-1/3"></div>
+          <p className="mt-4 text-gray-600">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
 
   const progressData = getProgressData(selectedTask);
 
@@ -335,13 +425,6 @@ const Tasks = () => {
 
   return (
     <div className="p-6">
-      {/* Add a button to download the report */}
-      <button
-        className="mb-4 px-4 py-2 text-white bg-purple-900 rounded-full hover:bg-purple-950 flex items-center"
-        onClick={downloadReport}
-      >
-        Download Report
-      </button>
       {viewDetails ? (
         loadingDetails ? (
           <div>
