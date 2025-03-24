@@ -78,9 +78,11 @@ app.get('/api/projects', verifyToken, async (req, res) => {
       const userData = snapshot.val();
       const email = userData.email;
       const accessToken = userData.accessToken;
+      const domain = userData.domainName;
+
 
       // Proceed with Jira API request using email and accessToken
-      const jiraURL = `https://codewolfsol.atlassian.net/rest/api/3/project`; // Replace with your Jira instance
+      const jiraURL = `https://${domain}/rest/api/3/project`; // Replace with your Jira instance
 
       try {
         const response = await axios.get(jiraURL, {
@@ -132,9 +134,11 @@ app.get('/api/tasks', verifyToken, async (req, res) => {
       const userData = snapshot.val();
       const email = userData.email;
       const accessToken = userData.accessToken;
+      const domain = userData.domainName;
+
 
       // Jira API request with projectId in the JQL
-      const jiraURL = `https://codewolfsol.atlassian.net/rest/api/3/search?jql=project=${projectId}&startAt=${startAt}&maxResults=${maxResults}`; // Replace with your Jira instance
+      const jiraURL = `https://${domain}/rest/api/3/search?jql=project=${projectId}&startAt=${startAt}&maxResults=${maxResults}`; // Replace with your Jira instance
 
       try {
         const response = await axios.get(jiraURL, {
@@ -197,9 +201,11 @@ app.get('/api/tasksdetails', verifyToken, async (req, res) => {
       const userData = snapshot.val();
       const email = userData.email;
       const accessToken = userData.accessToken;
+      const domain = userData.domainName;
+
 
       // Jira API request with taskId
-      const jiraURL = `https://codewolfsol.atlassian.net/rest/api/3/issue/${taskId}?expand=changelog`; // Replace with your Jira instance
+      const jiraURL = `https://${domain}/rest/api/3/issue/${taskId}?expand=changelog`; // Replace with your Jira instance
 
       try {
         const response = await axios.get(jiraURL, {
@@ -335,9 +341,10 @@ app.get('/api/taskscomments', verifyToken, async (req, res) => {
       const userData = snapshot.val();
       const email = userData.email;
       const accessToken = userData.accessToken;
+      const domain = userData.domainName;
 
       // Jira API request with taskId
-      const jiraURL = `https://codewolfsol.atlassian.net/rest/api/3/issue/${taskId}/comment`; // Replace with your Jira instance
+      const jiraURL = `https://${domain}/rest/api/3/issue/${taskId}/comment`; // Replace with your Jira instance
 
       try {
         const response = await axios.get(jiraURL, {
