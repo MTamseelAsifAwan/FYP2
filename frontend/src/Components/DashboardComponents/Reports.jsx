@@ -411,7 +411,7 @@ const generateTaskCompletionAreaChart = async (taskCompletionData) => {
 const generateGanttChart = async (tasks) => {
   const canvas = document.createElement('canvas');
   canvas.width = 1000; // Increase canvas size for better resolution
-  canvas.height = tasks.length * 45 + 100; // Dynamically set height based on number of tasks
+  canvas.height = tasks.length * 40 + 100; // Dynamically set height based on number of tasks
   const ctx = canvas.getContext('2d');
 
   // Custom Gantt chart rendering logic
@@ -504,7 +504,7 @@ const downloadGanttChart = async (projectDetails, setIsLoading, setIsCalculated)
     }
 
     const doc = new jsPDF();
-    const tasksPerPage = 20; // Number of tasks to display per page
+    const tasksPerPage = 8; // Number of tasks to display per page
 
     // Title
     doc.setFontSize(22);
@@ -543,16 +543,13 @@ const downloadGanttChart = async (projectDetails, setIsLoading, setIsCalculated)
     for (let i = 0; i < projectTasks.length; i += tasksPerPage) {
       const tasksSubset = projectTasks.slice(i, i + tasksPerPage);
       const ganttChartImage = await generateGanttChart(tasksSubset);
-      
-      // Increase height allocation per task and maximum height limit
-      const chartHeight = Math.min(240, Math.max(120, tasksSubset.length * 10 + 40));
-      doc.addImage(ganttChartImage, 'PNG', 15, yPos + 20, 180, chartHeight);
+      doc.addImage(ganttChartImage, 'PNG', 15, yPos + 20, 180, 90);
 
       if (i + tasksPerPage < projectTasks.length) {
         doc.addPage();
         yPos = 20;
       } else {
-        yPos += chartHeight + 20;
+        yPos += 110;
       }
     }
 
@@ -583,7 +580,7 @@ const calculateAndDownloadReport = async (reportType, projectDetails, setIsLoadi
     }
 
     const doc = new jsPDF();
-    const tasksPerPage = 20; // Number of tasks to display per page
+    const tasksPerPage = 12; // Number of tasks to display per page
 
     // Title
     doc.setFontSize(22);
@@ -782,16 +779,13 @@ const calculateAndDownloadReport = async (reportType, projectDetails, setIsLoadi
       for (let i = 0; i < projectTasks.length; i += tasksPerPage) {
         const tasksSubset = projectTasks.slice(i, i + tasksPerPage);
         const ganttChartImage = await generateGanttChart(tasksSubset);
-        
-        // Increase height allocation per task and maximum height limit
-        const chartHeight = Math.min(240, Math.max(120, tasksSubset.length * 10 + 40));
-        doc.addImage(ganttChartImage, 'PNG', 15, yPos + 30, 180, chartHeight);
+        doc.addImage(ganttChartImage, 'PNG', 15, yPos + 30, 180, 90);
 
         if (i + tasksPerPage < projectTasks.length) {
           doc.addPage();
           yPos = 20;
         } else {
-          yPos += chartHeight + 30; // Adjust yPos based on the actual chart height
+          yPos += 120;
         }
       }
     }
